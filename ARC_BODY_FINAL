@@ -1,0 +1,744 @@
+#include <AccelStepper.h>
+#include <MultiStepper.h>
+#include <bldc_jawad.h>
+
+
+#define PIN_A1  (41)
+#define PIN_B1  (13)
+#define PIN_Z1  (40)
+
+
+#define PIN_A2  (38)
+#define PIN_B2  (39)
+#define PIN_Z2  (37)
+
+
+#define PIN_A3  (35)
+#define PIN_B3  (36)
+#define PIN_Z3  (34)
+
+
+
+#define PIN_A4  (31)
+#define PIN_B4  (33)
+#define PIN_Z4  (32)
+
+
+// Constants
+const int STEPS_PER_REV = 1600;     // Number of steps per revolution of the stepper motor
+const float GEAR_RATIO = 50.0;      // Gear ratio of the stepper motor's gear box
+
+// Variables
+volatile long encoderCount1 = 0;     // Encoder count variable
+float wheelAngle1 = 0.0;             // Current wheel angle
+
+volatile long encoderCount2 = 0;     // Encoder count variable
+float wheelAngle2 = 0.0;   
+
+
+volatile long encoderCount3 = 0;     // Encoder count variable
+float wheelAngle3 = 0.0;   
+
+
+volatile long encoderCount4 = 0;     // Encoder count variable
+float wheelAngle4 = 0.0;   
+
+
+
+
+// Function to calculate the wheel angle from the encoder count
+float calculateWheelAngle(long count) {
+  float steps = static_cast<float>(count) / GEAR_RATIO;  // Adjust the count with the gear ratio
+  float angle = (steps / STEPS_PER_REV) * 360.0;        // Calculate the wheel angle in degrees
+  return angle;
+}
+
+// Encoder interrupt handler
+void encoderISR1() {
+  // Read the state of the encoder pins
+  int pinAState = digitalRead(PIN_A1);
+  int pinBState = digitalRead(PIN_B1);
+
+  // Determine the direction based on the states of the encoder pins
+  int direction = (pinAState == pinBState) ? 1 : -1;
+
+  // Increment or decrement the encoder count based on the direction
+  encoderCount1 += direction;
+}
+
+void encoderISR2() {
+  // Read the state of the encoder pins
+  int pinAState = digitalRead(PIN_A2);
+  int pinBState = digitalRead(PIN_B2);
+
+  // Determine the direction based on the states of the encoder pins
+  int direction = (pinAState == pinBState) ? 1 : -1;
+
+  // Increment or decrement the encoder count based on the direction
+  encoderCount2 += direction;
+}
+
+void encoderISR3() {
+  // Read the state of the encoder pins
+  int pinAState = digitalRead(PIN_A3);
+  int pinBState = digitalRead(PIN_B3);
+
+  // Determine the direction based on the states of the encoder pins
+  int direction = (pinAState == pinBState) ? 1 : -1;
+
+  // Increment or decrement the encoder count based on the direction
+  encoderCount3 += direction;
+}
+
+
+void encoderISR4() {
+  // Read the state of the encoder pins
+  int pinAState = digitalRead(PIN_A4);
+  int pinBState = digitalRead(PIN_B4);
+
+  // Determine the direction based on the states of the encoder pins
+  int direction = (pinAState == pinBState) ? 1 : -1;
+
+  // Increment or decrement the encoder count based on the direction
+  encoderCount4 += direction;
+}
+
+
+
+
+
+
+
+
+
+MultiStepper steppers;
+
+
+long thrs_f = -10000;
+long p=0;
+long thrs_b = 10000;
+long thrs_f_m2 = -43000;
+long thrs_b_m2 = 43000;
+//int interrupt[] = {0,0,0,0,3,0,2,0};
+int interrupt[] = {0,23,22,21,20,19,18}; //Flysky Receiver connected to Teensy// Order channel - channel 1(23), 2,(22) 3(21), 4(20), 5(19), 6(18) 
+
+int chVal[] =     {0,0,0,0,0,0,0,0};   //chVal[4] used for stearing the steppers. chVal[6] used for stearing mode . chVal[1] used in 360 movement (right/left) . chVal[2] is used for motor (forward/backward)
+volatile long StartTime[] = {0,0,0,0,0,0,0};
+volatile long CurrentTime[] = {0,0,0,0,0,0,0};
+volatile long Pulses[] = {0,0,0,0,0,0,0};
+int PulseWidth[] = {0,0,0,0,0,0,0};
+const int max_speed = 100;
+ int speed = 50;
+ int gear = 50;
+ int step = 1600;
+
+int mode = 0;
+
+
+//AccelStepper stepper1(1,4,5);
+AccelStepper stepper1(1,24,12); // pul // dir
+AccelStepper stepper2(1,26,25);
+AccelStepper stepper3(1,28,27);
+AccelStepper stepper4(1,30,29);
+
+bldc motorr1(0,1,2, max_speed); //brake, dir, pwm, max_speed
+bldc motorr2(3,4,5, max_speed); //brake, dir, pwm, max_speed
+bldc motorr3(6,7,8, max_speed); //brake, dir, pwm, max_speed
+bldc motorr4(9,10,11, max_speed); //brake, dir, pwm, max_speed
+
+long positions[]={0,0,0,0};
+
+long a=0;
+
+const int t=50;
+
+
+void setup(){
+
+  stepper_setup();
+  motor_setup();
+ // steppers.addStepper(st1);
+ // steppers.addStepper(st2);
+  
+
+  
+  interruptConfig();
+
+   pinMode(PIN_A1, INPUT);
+  pinMode(PIN_B1, INPUT);
+  pinMode(PIN_Z1, INPUT_PULLUP);
+
+   pinMode(PIN_A2, INPUT);
+  pinMode(PIN_B2, INPUT);
+  pinMode(PIN_Z2, INPUT_PULLUP);
+
+   pinMode(PIN_A3, INPUT);
+  pinMode(PIN_B3, INPUT);
+  pinMode(PIN_Z3, INPUT_PULLUP);
+
+   pinMode(PIN_A4, INPUT);
+  pinMode(PIN_B4, INPUT);
+  pinMode(PIN_Z4, INPUT_PULLUP);
+
+  // Attach interrupt for the A pin
+  attachInterrupt(digitalPinToInterrupt(PIN_A1), encoderISR1, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(PIN_A2), encoderISR2, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(PIN_A3), encoderISR3, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(PIN_A4), encoderISR4, CHANGE);
+
+
+
+}
+
+
+
+void motor_run(int a){
+  if(a!=3 && a!=4){
+    if(chVal[2]>1450&& chVal[2]<1550){ motor_stop();}
+    else {
+  long b = map(chVal[2],1550,2000,0,speed);
+
+   motorr1.run(b);
+   motorr2.run(b);
+   motorr3.run(b);
+   motorr4.run(b);
+    }
+  }
+  else if(a==3){
+    long b = map(chVal[1],1550,2000,0,speed);
+    motorr1.run(b);
+    motorr2.run(b);
+    motorr3.run(-b);
+    motorr4.run(-b);
+  }
+  
+}
+
+
+
+
+
+void loop()
+{
+  
+takeInterruptSignals();
+printChValues();
+
+  Serial.println();
+  delay(200);
+  if(chVal[6]>900&&chVal[6]<1200) mode =2;
+  if(chVal[6]>1400&&chVal[6]<1600) mode =1;
+  if(chVal[6]>1900&&chVal[6]<2100) mode =3;
+
+  if(chVal[5]>1550&&chVal[5]<2100) {speed = map(chVal[5], 1550,2100,50,max_speed);}
+  if(!(chVal[5]>1550&&chVal[5]<2100)) speed = 50;
+    if(chVal[3]>1600&&chVal[3]<2200) allign() ;
+
+
+
+  start();
+  encoder();
+
+ 
+
+   
+  
+
+
+
+
+
+} 
+
+void encoder(){
+encoder1();
+  encoder2();
+
+    encoder3();
+
+    encoder4();
+}
+void allign(){
+   allign1();
+   allign2();
+   allign3();
+   allign4();
+
+}
+
+
+void start(){
+
+ a=((step*gear)/360)*(map(chVal[4],1550,1990,0,25));
+ 
+  if(chVal[4]>1450 && chVal[4]<1550 && mode==2){
+    p=0;
+   // allign();
+    
+ motor_run(2);
+ Serial.println("if");
+
+  }
+
+  else if(a>thrs_f && a<thrs_b && mode==2)  {
+    positions[0]=-a;
+    positions[1]=a-250;
+    positions[2]=-a;
+    positions[3]=a-250;
+
+  steppers.moveTo(positions);
+ steppers.runSpeedToPosition();
+ motor_run(2);
+ Serial.println(stepper1.currentPosition());
+  }
+  else if(a>thrs_f_m2 && a<thrs_b_m2 && mode==1){
+    if(chVal[4]<1450 && p<thrs_b_m2 ) p+=500 ;
+    if( chVal[4]>1550 && p>thrs_f_m2) p-=500 ;
+
+    positions[0]=p;
+    positions[1]=p;
+    positions[2]=p;
+    positions[3]=p;
+
+  steppers.moveTo(positions);
+ steppers.runSpeedToPosition();
+ motor_run(2);
+ Serial.print("Mode 1: ");
+ Serial.println(stepper1.currentPosition());
+  }
+  else if( mode==3){
+    
+    positions[0]=-10000;
+    positions[1]=10000;
+    positions[2]=10000;
+    positions[3]=-10000;
+Serial.println("sdf");
+  steppers.moveTo(positions);
+ steppers.runSpeedToPosition();
+  motor_run(3);
+ Serial.println(stepper1.currentPosition());
+  }
+
+}
+
+// takeInterruptSignals();
+
+void takeInterruptSignals(){
+   
+    if(Pulses[1] < 2100)chVal[1] = Pulses[1];
+    if(Pulses[2] < 2100)chVal[2] = Pulses[2];
+    if(Pulses[3] < 2100)chVal[3] = Pulses[3];
+    if(Pulses[4] < 2100)chVal[4] = Pulses[4];
+    if(Pulses[5] < 2100)chVal[5] = Pulses[5];
+    if(Pulses[6] < 2100)chVal[6] = Pulses[6];
+}
+void printChValues(){
+  
+  Serial.print(chVal[1]);Serial.print(" ");
+  Serial.print(chVal[2]);Serial.print(" ");
+  Serial.print(chVal[3]);Serial.print(" ");
+  Serial.print(chVal[4]);Serial.print(" ");
+  Serial.print(chVal[5]);Serial.print(" ");
+  Serial.print(chVal[6]);Serial.print(" ");
+}
+void interruptConfig(){
+
+   pinMode(interrupt[1],INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(interrupt[1]),PulseTimerA,CHANGE);
+  pinMode(interrupt[2],INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(interrupt[2]),PulseTimerB,CHANGE);
+  pinMode(interrupt[3],INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(interrupt[3]),PulseTimerC,CHANGE);
+  pinMode(interrupt[4],INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(interrupt[4]),PulseTimerD,CHANGE);
+  pinMode(interrupt[5],INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(interrupt[5]),PulseTimerE,CHANGE);
+  pinMode(interrupt[6],INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(interrupt[6]),PulseTimerF,CHANGE);
+}
+
+void PulseTimerA(){
+  int i = 1;
+  CurrentTime[i] = micros();
+  if(CurrentTime[i] > StartTime[i]){
+    Pulses[i] = CurrentTime[i] - StartTime[i];
+    StartTime[i] = CurrentTime[i];
+  }
+}
+void PulseTimerB(){
+  int i = 2;
+  CurrentTime[i] = micros();
+  if(CurrentTime[i] > StartTime[i]){
+    Pulses[i] = CurrentTime[i] - StartTime[i];
+    StartTime[i] = CurrentTime[i];
+  }
+}
+void PulseTimerC(){
+  int i = 3;
+  CurrentTime[i] = micros();
+  if(CurrentTime[i] > StartTime[i]){
+    Pulses[i] = CurrentTime[i] - StartTime[i];
+    StartTime[i] = CurrentTime[i];
+  }
+}
+void PulseTimerD(){
+  int i = 4;
+  CurrentTime[i] = micros();
+  if(CurrentTime[i] > StartTime[i]){
+    Pulses[i] = CurrentTime[i] - StartTime[i];
+    StartTime[i] = CurrentTime[i];
+  }
+}
+void PulseTimerE(){
+  int i = 5;
+  CurrentTime[i] = micros();
+  if(CurrentTime[i] > StartTime[i]){
+    Pulses[i] = CurrentTime[i] - StartTime[i];
+    StartTime[i] = CurrentTime[i];
+  }
+}
+void PulseTimerF(){
+  int i = 6;
+  CurrentTime[i] = micros();
+  if(CurrentTime[i] > StartTime[i]){
+    Pulses[i] = CurrentTime[i] - StartTime[i];
+    StartTime[i] = CurrentTime[i];
+  }
+}
+
+
+
+void stepper_setup(){
+steppers.addStepper(stepper1);
+  steppers.addStepper(stepper2);
+   steppers.addStepper(stepper3);
+  steppers.addStepper(stepper4);
+ // Serial.begin(9600);
+stepper4.setMaxSpeed(900000);
+stepper4.setAcceleration(1000);
+stepper3.setMaxSpeed(900000);
+stepper3.setAcceleration(1000);
+stepper4.setSpeed(900000);
+stepper3.setSpeed(900000);
+
+
+stepper1.setMaxSpeed(900000);
+stepper1.setAcceleration(1000);
+stepper2.setMaxSpeed(900000);
+stepper2.setAcceleration(1000);
+stepper2.setSpeed(900000);
+stepper1.setSpeed(900000);
+
+ stepper1.setMinPulseWidth(t);
+ stepper2.setMinPulseWidth(t);
+ stepper3.setMinPulseWidth(t);
+ stepper4.setMinPulseWidth(t);
+
+}
+
+void motor_setup(){
+   motorr1.setup_();
+ motorr2.setup_();
+ motorr3.setup_();
+ motorr4.setup_();
+  
+}
+
+
+void motor_stop(){
+motorr1.brake();
+ motorr2.brake();
+ motorr3.brake();
+ motorr4.brake();
+
+}
+
+
+// void allign() {
+  // Inside the `loop()` function
+  // Run motors in specific directions until encoder values reach zero
+//   void allign() {
+//   bool n = true;
+  
+//   while (n) {
+//     n = false;  // Set the flag to false initially
+    
+//     if (wheelAngle1 > 0.5) {
+//       stepper1.setSpeed(5000);  // Set motor 1 speed
+//       stepper1.runSpeed();       // Move motor 1 forward
+//       n = true;  // Set the flag to true if any motor is still moving
+//     } else if (wheelAngle1 < -0.5) {
+//       stepper1.setSpeed(-5000);   // Set motor 1 speed
+//       stepper1.runSpeed();       // Move motor 1 backward
+//       n = true;  // Set the flag to true if any motor is still moving
+//     } 
+
+//     if (wheelAngle2 > 0.5) {
+//       stepper2.setSpeed(-5000);  // Set motor 2 speed
+//       stepper2.runSpeed();       // Move motor 2 forward
+//       n = true;  // Set the flag to true if any motor is still moving
+//     } else if (wheelAngle2 < -0.5) {
+//       stepper2.setSpeed(-5000);   // Set motor 2 speed
+//       stepper2.runSpeed();       // Move motor 2 backward
+//       n = true;  // Set the flag to true if any motor is still moving
+//     } 
+
+//     if (wheelAngle3 > 0.5) {
+//       stepper3.setSpeed(-5000);  // Set motor 3 speed
+//       stepper3.runSpeed();       // Move motor 3 forward
+//       n = true;  // Set the flag to true if any motor is still moving
+//     } else if (wheelAngle3 < -0.5) {
+//       stepper3.setSpeed(-5000);   // Set motor 3 speed
+//       stepper3.runSpeed();       // Move motor 3 backward
+//       n = true;  // Set the flag to true if any motor is still moving
+//     } 
+
+//     if (wheelAngle4 > 0.5) {
+//       stepper4.setSpeed(-5000);  // Set motor 4 speed
+//       stepper4.runSpeed();       // Move motor 4 forward
+//       n = true;  // Set the flag to true if any motor is still moving
+//     } else if (wheelAngle4 < -0.5) {
+//       stepper4.setSpeed(-5000);   // Set motor 4 speed
+//       stepper4.runSpeed();       // Move motor 4 backward
+//       n = true;  // Set the flag to true if any motor is still moving
+//     } 
+//   }
+
+//   // Stop all motors when the encoder values reach zero
+//   stepper1.stop();
+//   stepper2.stop();
+//   stepper3.stop();
+//   stepper4.stop();
+
+//   // Print a message when the motors reach the desired positions
+//   Serial.println("Motors reached the desired positions!");
+// }
+
+
+
+
+
+
+
+
+
+
+ void encoder1(){
+
+  noInterrupts();  // Disable interrupts to ensure atomic read
+  long currentCount1 = encoderCount1;
+ 
+  interrupts();    // Enable interrupts
+  wheelAngle1 = calculateWheelAngle(currentCount1);
+  
+
+  // Print the current wheel angle
+  Serial.print("Current wheel angle 1: ");
+  Serial.print(wheelAngle1);
+  Serial.println(" degrees");
+
+
+
+  //delay(1000);  // Adjust delay as needed
+}
+
+
+
+ void encoder2(){
+
+  noInterrupts();  // Disable interrupts to ensure atomic read
+  long currentCount2 = encoderCount2;
+  interrupts();    // Enable interrupts
+  wheelAngle2 = calculateWheelAngle(currentCount2);
+
+  // Print the current wheel angle
+ 
+  Serial.print("Current wheel angle 2: ");
+  Serial.print(wheelAngle2);
+  Serial.println(" degrees");
+
+
+
+
+
+  //delay(1000);  // Adjust delay as needed
+}
+
+
+
+ void encoder3(){
+
+  noInterrupts();  // Disable interrupts to ensure atomic read
+  long currentCount3 = encoderCount3;
+  interrupts();    // Enable interrupts
+  wheelAngle3 = calculateWheelAngle(currentCount3);
+
+  // Print the current wheel angle
+Serial.print("Current wheel angle 3: ");
+  Serial.print(wheelAngle3);
+  Serial.println(" degrees");
+
+
+
+  //delay(1000);  // Adjust delay as needed
+}
+
+
+
+ void encoder4(){
+
+  noInterrupts();  // Disable interrupts to ensure atomic read
+  long currentCount4 = encoderCount4;
+  interrupts();    // Enable interrupts
+  wheelAngle4 = calculateWheelAngle(currentCount4);
+
+  // Print the current wheel angle
+Serial.print("Current wheel angle 4: ");
+  Serial.print(wheelAngle4);
+  Serial.println(" degrees");
+
+
+  //delay(1000);  // Adjust delay as needed
+}
+
+
+void allign1() {
+  // Set the target angles for each motor
+  float targetAngle1 = 0.0;
+  
+
+  // Set the motor speeds and directions
+  stepper3.setSpeed(5000);  // Adjust the speed as needed
+  
+
+  // Run the motors until they reach the target angles
+  // Run the motors until they reach the target angles
+while (abs(wheelAngle1 - targetAngle1) > 0.5) {
+  if (wheelAngle1 > targetAngle1) {
+    stepper3.setAcceleration(1000);
+    stepper3.setSpeed(5000);
+    stepper3.runSpeed();
+  } else if (wheelAngle1 < targetAngle1) {
+    stepper3.setAcceleration(1000);
+    stepper3.setSpeed(-5000);
+    stepper3.runSpeed();
+    Serial.println("c");
+  }
+
+
+  // Update the encoder values
+  encoder1();
+
+  // Reset encoder values to zero when wheel angles reach target angles
+  if (abs(wheelAngle1 - targetAngle1) <= 0.5)
+    encoderCount1 = 0;
+ 
+}
+
+stepper3.stop();
+}
+void allign2(){
+  float targetAngle2 = 0.0;
+  
+
+  // Set the motor speeds and directions
+  stepper4.setSpeed(5000);  // Adjust the speed as needed
+  
+//2
+while (abs(wheelAngle2 - targetAngle2) > 0.5) {
+
+  if (wheelAngle2 > targetAngle2) {
+    stepper4.setAcceleration(1000);
+    stepper4.setSpeed(5000);
+    stepper4.run();
+  } else if (wheelAngle2 < targetAngle2) {
+    stepper4.setAcceleration(1000);
+    stepper4.setSpeed(-5000);
+    stepper4.run();
+  }
+
+  // Update the encoder values
+  encoder2();
+
+  
+  if (abs(wheelAngle2 - targetAngle2) <= 0.5)
+    encoderCount2 = 0;
+
+}
+stepper4.stop();
+
+}
+
+
+
+void allign3(){
+  float targetAngle3 = 0.0;
+  
+
+  // Set the motor speeds and directions
+  stepper1.setSpeed(5000);  // Adjust the speed as needed
+  
+//2
+while (abs(wheelAngle3 - targetAngle3) > 0.5) {
+
+  if (wheelAngle3 > targetAngle3) {
+    stepper1.setAcceleration(1000);
+    stepper1.setSpeed(5000);
+    stepper1.run();
+  } else if (wheelAngle3 < targetAngle3) {
+    stepper1.setAcceleration(1000);
+    stepper1.setSpeed(-5000);
+    stepper1.run();
+  }
+
+  // Update the encoder values
+  encoder3();
+
+  
+  if (abs(wheelAngle3 - targetAngle3) <= 0.5)
+    encoderCount3 = 0;
+
+}
+stepper1.stop();
+
+}
+
+
+
+void allign4(){
+  float targetAngle4 = 0.0;
+  
+
+  // Set the motor speeds and directions
+  stepper2.setSpeed(5000);  // Adjust the speed as needed
+  
+//2
+while (abs(wheelAngle4 - targetAngle4) > 0.5) {
+
+  if (wheelAngle4 > targetAngle4) {
+    stepper2.setAcceleration(1000);
+    stepper2.setSpeed(5000);
+    stepper2.run();
+  } else if (wheelAngle4 < targetAngle4) {
+    stepper2.setAcceleration(1000);
+    stepper2.setSpeed(-5000);
+    stepper2.run();
+  }
+
+  // Update the encoder values
+  encoder4();
+
+  
+  if (abs(wheelAngle4 - targetAngle4) <= 0.5)
+    encoderCount4 = 0;
+
+}
+stepper2.stop();
+
+}
+
+//3
+//stepper1 er connection e lagano stepper3
+//stepper2 er moddhe stepper4
+//stepper3 er moddhe stepper1
+//stepper4 er mddhe stepper2
