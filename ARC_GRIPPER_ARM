@@ -1,0 +1,375 @@
+#include <AccelStepper.h>
+#include <MultiStepper.h>
+
+
+MultiStepper steppers;
+
+
+long base_angle=0;
+long base_step;
+long thrs_base_f = 100000;
+long thrs_base_b = -100000;
+int n=0;
+int mode ;
+long base_ratio=1000;
+ int z=0;
+
+long base;
+long b=0;
+long l=0;
+long q=0;
+long x = 0;
+long m =0;
+long y =0;
+
+
+int interrupt[] = {0,23,22,21,20,19,18};
+int chVal[] =     {0,0,0,0,0,0,0,0};
+volatile long StartTime[] = {0,0,0,0,0,0,0};
+volatile long CurrentTime[] = {0,0,0,0,0,0,0};
+volatile long Pulses[] = {0,0,0,0,0,0,0};
+int PulseWidth[] = {0,0,0,0,0,0,0};
+
+
+
+AccelStepper stepperB(1,33,34); // pul // dir //base  chVal[4]   chVal[1 and 2] sabertooth
+AccelStepper stepperL(1,39,40); //science L
+AccelStepper stepperR(1,35,36); //science R // uporer ta
+
+AccelStepper stepperG(1,37,38); //gripper
+
+
+
+
+long positions[2];
+
+const int t=200;
+
+void setup(){
+  stepper_setup();
+interruptConfig();
+positions[0]=0;
+positions[1]=0;
+
+ fix();
+
+}
+
+void stepper_setup(){
+  steppers.addStepper(stepperL);
+  steppers.addStepper(stepperR);
+  stepperR.setMaxSpeed(1000);
+stepperR.setAcceleration(500);
+stepperL.setMaxSpeed(1000);
+stepperL.setAcceleration(500);
+stepperR.setSpeed(300);
+stepperL.setSpeed(300);
+
+
+
+stepperB.setMaxSpeed(900000);
+stepperB.setAcceleration(1000);
+stepperB.setSpeed(900000);
+
+ stepperB.setMinPulseWidth(t);
+ stepperL.setMinPulseWidth(t);
+ stepperR.setMinPulseWidth(t);
+
+
+
+
+
+
+
+  stepperG.setMaxSpeed(900000);
+stepperG.setAcceleration(500);
+stepperG.setSpeed(900000);
+ stepperG.setMinPulseWidth(t);
+
+
+
+
+
+
+
+}
+
+
+void takeInterruptSignals(){
+    if(Pulses[1] < 2100)chVal[1] = Pulses[1];
+    if(Pulses[2] < 2100)chVal[2] = Pulses[2];
+    if(Pulses[3] < 2100)chVal[3] = Pulses[3];
+    if(Pulses[4] < 2100)chVal[4] = Pulses[4];
+    if(Pulses[5] < 2100)chVal[5] = Pulses[5];
+    if(Pulses[6] < 2100)chVal[6] = Pulses[6];
+}
+void printChValues(){
+  Serial.print(chVal[1]);Serial.print(" ");
+  Serial.print(chVal[2]);Serial.print(" ");
+  Serial.print(chVal[3]);Serial.print(" ");
+  Serial.print(chVal[4]);Serial.print(" ");
+  Serial.print(chVal[5]);Serial.print(" ");
+  Serial.print(chVal[6]);Serial.print(" ");
+  //delay(100);
+}
+void interruptConfig(){
+  pinMode(interrupt[1],INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(interrupt[1]),PulseTimerA,CHANGE);
+  pinMode(interrupt[2],INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(interrupt[2]),PulseTimerB,CHANGE);
+  pinMode(interrupt[3],INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(interrupt[3]),PulseTimerC,CHANGE);
+  pinMode(interrupt[4],INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(interrupt[4]),PulseTimerD,CHANGE);
+  pinMode(interrupt[5],INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(interrupt[5]),PulseTimerE,CHANGE);
+  pinMode(interrupt[6],INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(interrupt[6]),PulseTimerF,CHANGE);
+}
+
+void PulseTimerA(){
+  int i = 1;
+  CurrentTime[i] = micros();
+  if(CurrentTime[i] > StartTime[i]){
+    Pulses[i] = CurrentTime[i] - StartTime[i];
+    StartTime[i] = CurrentTime[i];
+  }
+}
+void PulseTimerB(){
+  int i = 2;
+  CurrentTime[i] = micros();
+  if(CurrentTime[i] > StartTime[i]){
+    Pulses[i] = CurrentTime[i] - StartTime[i];
+    StartTime[i] = CurrentTime[i];
+  }
+}
+void PulseTimerC(){
+  int i = 3;
+  CurrentTime[i] = micros();
+  if(CurrentTime[i] > StartTime[i]){
+    Pulses[i] = CurrentTime[i] - StartTime[i];
+    StartTime[i] = CurrentTime[i];
+  }
+}
+void PulseTimerD(){
+  int i = 4;
+  CurrentTime[i] = micros();
+  if(CurrentTime[i] > StartTime[i]){
+    Pulses[i] = CurrentTime[i] - StartTime[i];
+    StartTime[i] = CurrentTime[i];
+  }
+}
+void PulseTimerE(){
+  int i = 5;
+  CurrentTime[i] = micros();
+  if(CurrentTime[i] > StartTime[i]){
+    Pulses[i] = CurrentTime[i] - StartTime[i];
+    StartTime[i] = CurrentTime[i];
+  }
+}
+void PulseTimerF(){
+  int i = 6;
+  CurrentTime[i] = micros();
+  if(CurrentTime[i] > StartTime[i]){
+    Pulses[i] = CurrentTime[i] - StartTime[i];
+    StartTime[i] = CurrentTime[i];
+  }
+}
+//100000 for 360
+
+
+void loop(){
+
+  
+  takeInterruptSignals();
+  printChValues();
+  Serial.println();
+
+  if(chVal[6]>900&&chVal[6]<1200)  mode = 1;
+  if(chVal[6]>1400&&chVal[6]<1600) mode = 2;
+  if(chVal[6]>1900&&chVal[6]<2100) mode = 3;
+
+  HANDLE_LIFTER();
+
+  base_arm(); //ch 4
+ gripper(); //ch  
+  print_stepper_pos();
+  
+
+  
+
+
+
+
+//delay(50);
+
+
+}
+
+
+
+void print_stepper_pos(){
+  Serial.print("Stepper L position : ");
+  Serial.println(stepperL.currentPosition());
+    Serial.print("Stepper R position : ");
+  Serial.println(stepperR.currentPosition());
+
+Serial.print("Stepper G position : ");
+
+  Serial.println(stepperG.currentPosition());
+  Serial.print("Stepper B position : ");
+
+  Serial.println(stepperB.currentPosition());
+
+}
+
+
+
+void base_arm(){
+  
+  if((chVal[4]<1400 || chVal[4]>1600) && stepperB.currentPosition()<=thrs_base_f && stepperB.currentPosition()>=thrs_base_b ){
+
+
+  if(chVal[4]>1600 && stepperB.currentPosition()<=thrs_base_f && chVal[4]<2100) b+=500;
+  else if(chVal[4]<1400 && stepperB.currentPosition()>=thrs_base_b && chVal[4]>900) b-=500;
+
+  
+ 
+  stepperB.moveTo(b);
+  stepperB.setSpeed(5000);
+  stepperB.runSpeedToPosition();
+  Serial.println(base_step);
+  // Serial.println(base_step);
+
+  }
+
+  
+  else{
+  b=0;
+  // positions[0]=0;
+  // positions[1]=0;
+  }
+  if(stepperB.currentPosition()>=thrs_base_f) positions[0]=thrs_base_f;
+  if(stepperB.currentPosition()<=thrs_base_b) positions[0]=thrs_base_b;
+  
+}
+
+void fix(){
+ // chVal[5]=0
+  positions[0]=2400;
+  positions[1]=2400;
+ 
+  steppers.moveTo(positions);
+  
+  steppers.runSpeedToPosition();
+
+  stepperL.setCurrentPosition(0);
+  stepperR.setCurrentPosition(0);
+
+
+  
+}
+
+void HANDLE_LIFTER()
+{
+  
+if(mode==1){
+ stepperR.setCurrentPosition(0);
+ stepperL.setCurrentPosition(0);
+  z=0;
+  if(chVal[3]>1600 && chVal[3]<2100) z +=50;
+  else if(chVal[3]<1400 && chVal[3]>900)  z -=50;
+  // else z =0;
+  positions[0]=z;
+  positions[1]=z;
+ 
+  steppers.moveTo(positions);
+  
+  steppers.runSpeedToPosition();
+  Serial.println( positions[0]);
+  Serial.println( positions[1]);
+  // stepperR.setCurrentPosition(0);
+  //  stepperL.setCurrentPosition(0);
+
+
+
+ 
+  }
+  if(mode==2){
+      stepperR.setCurrentPosition(0);
+   stepperL.setCurrentPosition(0);
+   x=0;
+  if(chVal[3]<1450 && x>-12000 ) x-=50 ;
+  if( chVal[3]>1550 && x<12000) x+=50 ;
+
+    positions[0]=x;
+    positions[1]=-x;
+
+  steppers.moveTo(positions);
+ steppers.runSpeedToPosition();
+  //  stepperR.setCurrentPosition(0);
+  //  stepperL.setCurrentPosition(0);
+  
+}
+
+}
+void gripper(){
+  stepperG.setCurrentPosition(0);
+   m=0;
+   if(chVal[5]>1600 && chVal[5]<2100) m-=500;
+   else if(chVal[5]<1400 && chVal[5]>900)  m+=500;
+  // //else z =0;
+  
+ 
+  stepperG.moveTo(m);
+  
+
+
+  stepperG.moveTo(m);
+  stepperG.setSpeed(5000);
+ stepperG.runSpeedToPosition();
+
+
+
+
+
+
+
+
+
+  
+  // if((chVal[5]<1400 || chVal[5]>1600) && stepperG.currentPosition()<=thrs_base_f && stepperG.currentPosition()>=thrs_base_b ){
+
+
+  // if(chVal[5]>1600 && stepperG.currentPosition()<=thrs_base_f && chVal[5]<2100) q+=500;
+  // else if(chVal[5]<1400 && stepperG.currentPosition()>=thrs_base_b && chVal[5]>900) q-=500;
+
+  
+ 
+  // stepperG.moveTo(q);
+  // stepperG.setSpeed(5000);
+  // stepperG.runSpeedToPosition();
+  // // Serial.println(base_step);
+
+  // }
+
+  
+  // else{
+  // b=0;
+  // // positions[0]=0;
+  // // positions[1]=0;
+  // }
+  // if(stepperB.currentPosition()>=thrs_base_f) positions[0]=thrs_base_f;
+  // if(stepperB.currentPosition()<=thrs_base_b) positions[0]=thrs_base_b;
+
+  // Serial.println( positions[1]);
+
+}
+
+
+
+
+
+
+
+
