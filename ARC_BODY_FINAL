@@ -102,15 +102,6 @@ void encoderISR4() {
   // Increment or decrement the encoder count based on the direction
   encoderCount4 += direction;
 }
-
-
-
-
-
-
-
-
-
 MultiStepper steppers;
 
 
@@ -224,15 +215,15 @@ void loop()
 takeInterruptSignals();
 printChValues();
 
-  Serial.println();
-  delay(200);
-  if(chVal[6]>900&&chVal[6]<1200) mode =2;
-  if(chVal[6]>1400&&chVal[6]<1600) mode =1;
+  //Serial.println();
+ // delay(200);
+  if(chVal[6]>900&&chVal[6]<1200) mode =1;
+  if(chVal[6]>1400&&chVal[6]<1600) mode =2;
   if(chVal[6]>1900&&chVal[6]<2100) mode =3;
 
   if(chVal[5]>1550&&chVal[5]<2100) {speed = map(chVal[5], 1550,2100,50,max_speed);}
   if(!(chVal[5]>1550&&chVal[5]<2100)) speed = 50;
-    if(chVal[3]>1600&&chVal[3]<2200) allign() ;
+  if(chVal[3]>1600&&chVal[3]<2200) allign() ;
 
 
 
@@ -251,8 +242,9 @@ printChValues();
 } 
 
 void encoder(){
-encoder1();
-  encoder2();
+  noInterrupts(); 
+     encoder1();
+     encoder2();
 
     encoder3();
 
@@ -263,6 +255,14 @@ void allign(){
    allign2();
    allign3();
    allign4();
+   stepper1.setCurrentPosition(0);
+      stepper2.setCurrentPosition(0);
+
+   stepper3.setCurrentPosition(0);
+
+   stepper4.setCurrentPosition(0);
+
+
 
 }
 
@@ -273,7 +273,15 @@ void start(){
  
   if(chVal[4]>1450 && chVal[4]<1550 && mode==2){
     p=0;
-   // allign();
+    positions[0]=0;
+    positions[1]=0;
+    positions[2]=0;
+    positions[3]=0;
+
+    steppers.moveTo(positions);
+ steppers.runSpeedToPosition();
+  //  allign();
+  
     
  motor_run(2);
  Serial.println("if");
@@ -281,6 +289,7 @@ void start(){
   }
 
   else if(a>thrs_f && a<thrs_b && mode==2)  {
+    p=0;
     positions[0]=-a;
     positions[1]=a-250;
     positions[2]=-a;
@@ -453,79 +462,8 @@ motorr1.brake();
 
 }
 
-
-// void allign() {
-  // Inside the `loop()` function
-  // Run motors in specific directions until encoder values reach zero
-//   void allign() {
-//   bool n = true;
-  
-//   while (n) {
-//     n = false;  // Set the flag to false initially
-    
-//     if (wheelAngle1 > 0.5) {
-//       stepper1.setSpeed(5000);  // Set motor 1 speed
-//       stepper1.runSpeed();       // Move motor 1 forward
-//       n = true;  // Set the flag to true if any motor is still moving
-//     } else if (wheelAngle1 < -0.5) {
-//       stepper1.setSpeed(-5000);   // Set motor 1 speed
-//       stepper1.runSpeed();       // Move motor 1 backward
-//       n = true;  // Set the flag to true if any motor is still moving
-//     } 
-
-//     if (wheelAngle2 > 0.5) {
-//       stepper2.setSpeed(-5000);  // Set motor 2 speed
-//       stepper2.runSpeed();       // Move motor 2 forward
-//       n = true;  // Set the flag to true if any motor is still moving
-//     } else if (wheelAngle2 < -0.5) {
-//       stepper2.setSpeed(-5000);   // Set motor 2 speed
-//       stepper2.runSpeed();       // Move motor 2 backward
-//       n = true;  // Set the flag to true if any motor is still moving
-//     } 
-
-//     if (wheelAngle3 > 0.5) {
-//       stepper3.setSpeed(-5000);  // Set motor 3 speed
-//       stepper3.runSpeed();       // Move motor 3 forward
-//       n = true;  // Set the flag to true if any motor is still moving
-//     } else if (wheelAngle3 < -0.5) {
-//       stepper3.setSpeed(-5000);   // Set motor 3 speed
-//       stepper3.runSpeed();       // Move motor 3 backward
-//       n = true;  // Set the flag to true if any motor is still moving
-//     } 
-
-//     if (wheelAngle4 > 0.5) {
-//       stepper4.setSpeed(-5000);  // Set motor 4 speed
-//       stepper4.runSpeed();       // Move motor 4 forward
-//       n = true;  // Set the flag to true if any motor is still moving
-//     } else if (wheelAngle4 < -0.5) {
-//       stepper4.setSpeed(-5000);   // Set motor 4 speed
-//       stepper4.runSpeed();       // Move motor 4 backward
-//       n = true;  // Set the flag to true if any motor is still moving
-//     } 
-//   }
-
-//   // Stop all motors when the encoder values reach zero
-//   stepper1.stop();
-//   stepper2.stop();
-//   stepper3.stop();
-//   stepper4.stop();
-
-//   // Print a message when the motors reach the desired positions
-//   Serial.println("Motors reached the desired positions!");
-// }
-
-
-
-
-
-
-
-
-
-
  void encoder1(){
 
-  noInterrupts();  // Disable interrupts to ensure atomic read
   long currentCount1 = encoderCount1;
  
   interrupts();    // Enable interrupts
@@ -546,7 +484,6 @@ motorr1.brake();
 
  void encoder2(){
 
-  noInterrupts();  // Disable interrupts to ensure atomic read
   long currentCount2 = encoderCount2;
   interrupts();    // Enable interrupts
   wheelAngle2 = calculateWheelAngle(currentCount2);
@@ -568,7 +505,6 @@ motorr1.brake();
 
  void encoder3(){
 
-  noInterrupts();  // Disable interrupts to ensure atomic read
   long currentCount3 = encoderCount3;
   interrupts();    // Enable interrupts
   wheelAngle3 = calculateWheelAngle(currentCount3);
@@ -587,7 +523,6 @@ Serial.print("Current wheel angle 3: ");
 
  void encoder4(){
 
-  noInterrupts();  // Disable interrupts to ensure atomic read
   long currentCount4 = encoderCount4;
   interrupts();    // Enable interrupts
   wheelAngle4 = calculateWheelAngle(currentCount4);
@@ -630,7 +565,7 @@ while (abs(wheelAngle1 - targetAngle1) > 0.5) {
   encoder1();
 
   // Reset encoder values to zero when wheel angles reach target angles
-  if (abs(wheelAngle1 - targetAngle1) <= 0.5)
+  if (abs(wheelAngle1 - targetAngle1) <= 0.0)
     encoderCount1 = 0;
  
 }
@@ -645,7 +580,7 @@ void allign2(){
   stepper4.setSpeed(5000);  // Adjust the speed as needed
   
 //2
-while (abs(wheelAngle2 - targetAngle2) > 0.5) {
+while (abs(wheelAngle2 - targetAngle2) > 0.0) {
 
   if (wheelAngle2 > targetAngle2) {
     stepper4.setAcceleration(1000);
@@ -661,7 +596,7 @@ while (abs(wheelAngle2 - targetAngle2) > 0.5) {
   encoder2();
 
   
-  if (abs(wheelAngle2 - targetAngle2) <= 0.5)
+  if (abs(wheelAngle2 - targetAngle2) <= 0.0)
     encoderCount2 = 0;
 
 }
@@ -679,7 +614,7 @@ void allign3(){
   stepper1.setSpeed(5000);  // Adjust the speed as needed
   
 //2
-while (abs(wheelAngle3 - targetAngle3) > 0.5) {
+while (abs(wheelAngle3 - targetAngle3) > 0.0) {
 
   if (wheelAngle3 > targetAngle3) {
     stepper1.setAcceleration(1000);
@@ -695,7 +630,7 @@ while (abs(wheelAngle3 - targetAngle3) > 0.5) {
   encoder3();
 
   
-  if (abs(wheelAngle3 - targetAngle3) <= 0.5)
+  if (abs(wheelAngle3 - targetAngle3) <= 0.0)
     encoderCount3 = 0;
 
 }
@@ -713,7 +648,7 @@ void allign4(){
   stepper2.setSpeed(5000);  // Adjust the speed as needed
   
 //2
-while (abs(wheelAngle4 - targetAngle4) > 0.5) {
+while (abs(wheelAngle4 - targetAngle4) > 0.0) {
 
   if (wheelAngle4 > targetAngle4) {
     stepper2.setAcceleration(1000);
@@ -729,7 +664,7 @@ while (abs(wheelAngle4 - targetAngle4) > 0.5) {
   encoder4();
 
   
-  if (abs(wheelAngle4 - targetAngle4) <= 0.5)
+  if (abs(wheelAngle4 - targetAngle4) <= 0.0)
     encoderCount4 = 0;
 
 }
